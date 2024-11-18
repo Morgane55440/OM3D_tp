@@ -28,6 +28,8 @@ class StaticMesh : NonCopyable {
     private:
         TypedBuffer<Vertex> _vertex_buffer;
         TypedBuffer<u32> _index_buffer;
+        glm::vec3 _center;
+        float _radius;
 };
 
 }
