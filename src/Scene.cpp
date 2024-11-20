@@ -66,7 +66,8 @@ bool isOnFrustum(Frustum frustum, SceneObject obj, Camera camera) {
     return (isOnForwardPlane(frustum._bottom_normal, globalCameraCenter, globalRadius) &&
             isOnForwardPlane(frustum._top_normal, globalCameraCenter, globalRadius) &&
             isOnForwardPlane(frustum._left_normal, globalCameraCenter, globalRadius) &&
-            isOnForwardPlane(frustum._right_normal, globalCameraCenter, globalRadius));
+            isOnForwardPlane(frustum._right_normal, globalCameraCenter, globalRadius) &&
+            isOnForwardPlane(frustum._near_normal, globalCameraCenter, globalRadius));
 }
 
 void Scene::render() const {
