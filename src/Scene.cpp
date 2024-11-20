@@ -4,6 +4,8 @@
 
 #include <shader_structs.h>
 
+#include <algorithm>
+
 namespace OM3D {
 
 Scene::Scene() {
@@ -38,6 +40,35 @@ void Scene::set_sun(glm::vec3 direction, glm::vec3 color) {
     _sun_color = color;
 }
 
+float getSignedDistanceToPlane(const glm::vec3& plane, const glm::vec3& point) {
+    return glm::dot(plane, point);
+}
+
+bool isOnForwardPlane(glm::vec3& plane, glm::vec3 globalCenter, const float globalRadius) {
+    return getSignedDistanceToPlane(plane, globalCenter) >= -globalRadius;
+}
+
+bool isOnFrustum(Frustum frustum, SceneObject obj, Camera camera) {
+
+    glm::mat4 transform = obj.transform();
+
+    glm::vec3 surfacePoint = obj.getMesh()->getCenter() + glm::vec3(1.0f) * obj.getMesh()->getRadius();
+
+    glm::vec4 globalCenter = transform * glm::vec4(obj.getMesh()->getCenter(), 1.0f);
+
+    glm::vec4 globalSurfacePoint = transform * glm::vec4(surfacePoint, 1.0f);
+
+    glm::vec4 diag = (globalSurfacePoint - globalCenter);
+    const float globalRadius = std::sqrt((diag.x * diag.x + diag.y * diag.y + diag.z * diag.z)) * 0.5f;
+
+    glm::vec3 globalCameraCenter = glm::vec3(globalCenter) - camera.position();
+
+    return (isOnForwardPlane(frustum._bottom_normal, globalCameraCenter, globalRadius) &&
+            isOnForwardPlane(frustum._top_normal, globalCameraCenter, globalRadius) &&
+            isOnForwardPlane(frustum._left_normal, globalCameraCenter, globalRadius) &&
+            isOnForwardPlane(frustum._right_normal, globalCameraCenter, globalRadius));
+}
+
 void Scene::render() const {
     // Fill and bind frame data buffer
     TypedBuffer<shader::FrameData> buffer(nullptr, 1);
@@ -66,9 +97,13 @@ void Scene::render() const {
     }
     light_buffer.bind(BufferUsage::Storage, 1);
 
+    const Frustum& frustum = _camera.build_frustum();
+    glm::vec3 cameraOrigin = _camera.position();
+
     // Render every object
     for(const SceneObject& obj : _objects) {
-        obj.render();
+        if (isOnFrustum(frustum, obj, _camera))
+            obj.render();
     }
 }
 

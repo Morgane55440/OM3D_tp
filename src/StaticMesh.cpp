@@ -29,6 +29,14 @@ StaticMesh::StaticMesh(const MeshData& data) :
 
 }
 
+glm::vec3 StaticMesh::getCenter() {
+    return _center;
+}
+
+float StaticMesh::getRadius() {
+    return _radius;
+}
+
 void StaticMesh::draw() const {
     _vertex_buffer.bind(BufferUsage::Attribute);
     _index_buffer.bind(BufferUsage::Index);

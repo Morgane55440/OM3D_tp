@@ -27,4 +27,8 @@ const glm::mat4& SceneObject::transform() const {
     return _transform;
 }
 
+const std::shared_ptr<StaticMesh> SceneObject::getMesh() const {
+    return _mesh;
+}
+
 }

@@ -23,6 +23,9 @@ class StaticMesh : NonCopyable {
 
         StaticMesh(const MeshData& data);
 
+        glm::vec3 getCenter();
+        float getRadius();
+
         void draw() const;
 
     private:
