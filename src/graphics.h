@@ -8,8 +8,10 @@
 namespace OM3D {
 
 // WARNING ABSOLUTE PATH
-static constexpr std::string_view shader_path = "C:/Users/baize/Desktop/image/om3d/OM3D_tp/shaders/";
-static constexpr std::string_view data_path = "C:/Users/baize/Desktop/image/om3d/OM3D_tp/data/";
+static constexpr std::string_view shader_path = "../../shaders/";
+static constexpr std::string_view data_path = "../../data/";
+//static constexpr std::string_view shader_path = "C:/Users/baize/Desktop/image/om3d/OM3D_tp/shaders/";
+//static constexpr std::string_view data_path = "C:/Users/baize/Desktop/image/om3d/OM3D_tp/data/";
 
 class GLHandle : NonCopyable {
     public:
