@@ -108,4 +108,26 @@ void Scene::render() const {
     }
 }
 
+void Scene::zprepass() const {
+    // Fill and bind frame data buffer
+    TypedBuffer<shader::FrameData> buffer(nullptr, 1);
+    {
+        auto mapping = buffer.map(AccessType::WriteOnly);
+        mapping[0].camera.view_proj = _camera.view_proj_matrix();
+        mapping[0].point_light_count = u32(0);
+        mapping[0].sun_color = glm::vec3(0.0,0.0,0.0);
+        mapping[0].sun_dir = glm::normalize(_sun_direction);
+    }
+    buffer.bind(BufferUsage::Uniform, 0);
+
+    const Frustum& frustum = _camera.build_frustum();
+    glm::vec3 cameraOrigin = _camera.position();
+
+    // Render every object
+    for(const SceneObject& obj : _objects) {
+        if (isOnFrustum(frustum, obj, _camera))
+            obj.render();
+    }
+}
+
 }
