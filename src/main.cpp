@@ -119,7 +119,7 @@ void gui(ImGuiRenderer& imgui) {
     imgui.start();
     DEFER(imgui.finish());
 
-    // ImGui::ShowDemoWindow();
+    //ImGui::ShowDemoWindow();
 
     bool open_scene_popup = false;
     if(ImGui::BeginMainMenuBar()) {
@@ -312,7 +312,8 @@ struct RendererState {
             state.prepass_framebuffer = Framebuffer(&state.depth_texture, std::array<Texture*, 0>{});
             state.color_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
-            state.main_framebuffer = Framebuffer(&state.depth_texture, std::array{&state.lit_hdr_texture});
+            state.g_depth_texture = Texture(size, ImageFormat::Depth32_FLOAT);
+            state.main_framebuffer = Framebuffer(&state.g_depth_texture, std::array{&state.lit_hdr_texture});
             state.g_buffer = Framebuffer(&state.depth_texture, std::array{ &state.color_texture, &state.normal_texture });
             state.tone_map_framebuffer = Framebuffer(nullptr, std::array{&state.tone_mapped_texture});
         }
@@ -327,6 +328,7 @@ struct RendererState {
     Texture tone_mapped_texture;
     Texture color_texture;
     Texture normal_texture;
+    Texture g_depth_texture;
 
     Framebuffer prepass_framebuffer;
     Framebuffer main_framebuffer;
@@ -364,6 +366,7 @@ int main(int argc, char** argv) {
     scene = create_default_scene();
 
     auto tonemap_program = Program::from_files("tonemap.frag", "screen.vert");
+    auto gbuffer_choice_program = Program::from_files("gbufferchoice.frag", "screen.vert");
     RendererState renderer;
 
     glEnable(GL_CULL_FACE);
@@ -408,9 +411,22 @@ int main(int argc, char** argv) {
             {
                 PROFILE_GPU("Main pass");
 
-                renderer.main_framebuffer.bind(false, true);
+                //renderer.main_framebuffer.bind(false, true);
+                renderer.g_buffer.bind(false, true);
                 scene->render();
             }
+
+            {
+                renderer.main_framebuffer.bind(true, true);
+                gbuffer_choice_program->bind();
+                gbuffer_choice_program->set_uniform(HASH("outputtype"), 1.0f);
+                renderer.color_texture.bind(0);
+                renderer.normal_texture.bind(1);
+                renderer.g_depth_texture.bind(2);
+                glDrawArrays(GL_TRIANGLES, 0, 3);
+                //renderer.g_buffer.blit();
+            }
+
 
             // Apply a tonemap in compute shader
             {
@@ -431,6 +447,7 @@ int main(int argc, char** argv) {
                 renderer.tone_map_framebuffer.blit();
             }
 
+            glClear(GL_DEPTH_BUFFER_BIT);
             // Draw GUI on top
             gui(imgui);
         }

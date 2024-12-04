@@ -436,6 +436,7 @@ Result<std::unique_ptr<Scene>> Scene::from_gltf(const std::string& file_name) {
                         mat->set_texture(0u, albedo);
                         mat->set_texture(1u, normal);
                     }
+                    //mat = std::make_shared<Material>(Material::g_buffer_material());
                 }
 
                 material = mat;
