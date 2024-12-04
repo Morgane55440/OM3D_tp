@@ -108,11 +108,13 @@ void process_inputs(GLFWwindow* window, Camera& camera) {
     mouse_pos = new_mouse_pos;
 }
 
-void gui(ImGuiRenderer& imgui) {
+void gui(ImGuiRenderer& imgui, int& debug_opt) {
     const ImVec4 error_text_color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
     const ImVec4 warning_text_color = ImVec4(1.0f, 0.8f, 0.4f, 1.0f);
 
     static bool open_gpu_profiler = false;
+
+    const char* displayOptions[] = { "albedo", "normals", "depth" };
 
     PROFILE_GPU("GUI");
 
@@ -121,26 +123,43 @@ void gui(ImGuiRenderer& imgui) {
 
     //ImGui::ShowDemoWindow();
 
-    bool open_scene_popup = false;
-    if(ImGui::BeginMainMenuBar()) {
-        if(ImGui::BeginMenu("File")) {
-            if(ImGui::MenuItem("Open Scene")) {
-                open_scene_popup = true;
+        bool open_scene_popup = false;
+        if(ImGui::BeginMainMenuBar()) {
+            if(ImGui::BeginMenu("File")) {
+                if(ImGui::MenuItem("Open Scene")) {
+                    open_scene_popup = true;
+                }
+                ImGui::EndMenu();
             }
-            ImGui::EndMenu();
-        }
 
-        if(ImGui::BeginMenu("Exposure")) {
-            ImGui::DragFloat("Exposure", &exposure, 0.25f, 0.01f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
-            if(exposure != 1.0f && ImGui::Button("Reset")) {
-                exposure = 1.0f;
+            if(ImGui::BeginMenu("Exposure")) {
+                ImGui::DragFloat("Exposure", &exposure, 0.25f, 0.01f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+                if(exposure != 1.0f && ImGui::Button("Reset")) {
+                    exposure = 1.0f;
+                }
+                ImGui::EndMenu();
             }
-            ImGui::EndMenu();
-        }
 
-        if(scene && ImGui::BeginMenu("Scene Info")) {
-            ImGui::Text("%u objects", u32(scene->objects().size()));
-            ImGui::Text("%u point lights", u32(scene->point_lights().size()));
+            if(scene && ImGui::BeginMenu("Scene Info")) {
+                ImGui::Text("%u objects", u32(scene->objects().size()));
+                ImGui::Text("%u point lights", u32(scene->point_lights().size()));
+                ImGui::EndMenu();
+            }
+
+        if (ImGui::BeginMenu("Debug Display")) {
+            if (ImGui::BeginCombo("##dropdown", displayOptions[debug_opt])) {
+                for (int i = 0; i < IM_ARRAYSIZE(displayOptions); i++) {
+                    const bool isSelected = (debug_opt == i);
+                    if (ImGui::Selectable(displayOptions[i], isSelected)) {
+                        debug_opt = i;
+                    }
+                    if (isSelected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
             ImGui::EndMenu();
         }
 
@@ -312,8 +331,7 @@ struct RendererState {
             state.prepass_framebuffer = Framebuffer(&state.depth_texture, std::array<Texture*, 0>{});
             state.color_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
-            state.g_depth_texture = Texture(size, ImageFormat::Depth32_FLOAT);
-            state.main_framebuffer = Framebuffer(&state.g_depth_texture, std::array{&state.lit_hdr_texture});
+            state.main_framebuffer = Framebuffer(nullptr, std::array{&state.lit_hdr_texture});
             state.g_buffer = Framebuffer(&state.depth_texture, std::array{ &state.color_texture, &state.normal_texture });
             state.tone_map_framebuffer = Framebuffer(nullptr, std::array{&state.tone_mapped_texture});
         }
@@ -373,6 +391,8 @@ int main(int argc, char** argv) {
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
+    int debug_opt = 0;
+
     for(;;) {
         glfwPollEvents();
         if(glfwWindowShouldClose(window) || glfwGetKey(window, GLFW_KEY_ESCAPE)) {
@@ -420,10 +440,10 @@ int main(int argc, char** argv) {
                 PROFILE_GPU("GBuffer");
                 renderer.main_framebuffer.bind(true, true);
                 gbuffer_choice_program->bind();
-                gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(0));
+                gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(debug_opt));
                 renderer.color_texture.bind(0);
                 renderer.normal_texture.bind(1);
-                renderer.g_depth_texture.bind(2);
+                renderer.depth_texture.bind(2);
                 glDrawArrays(GL_TRIANGLES, 0, 3);
                 //renderer.g_buffer.blit();
             }
@@ -452,7 +472,7 @@ int main(int argc, char** argv) {
             // Draw GUI on top
 
             glDisable(GL_CULL_FACE);
-            gui(imgui);
+            gui(imgui, debug_opt);
             glEnable(GL_CULL_FACE);
         }
 
