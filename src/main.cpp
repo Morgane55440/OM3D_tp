@@ -330,6 +330,8 @@ struct RendererState {
             state.tone_mapped_texture = Texture(size, ImageFormat::RGBA8_UNORM);
             state.prepass_framebuffer = Framebuffer(&state.depth_texture, std::array<Texture*, 0>{});
             state.color_texture = Texture(size, ImageFormat::RGBA8_sRGB);
+            state.sunlight_texture = Texture(size, ImageFormat::RGBA8_sRGB);
+            state.ambientlight_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
             state.main_framebuffer = Framebuffer(nullptr, std::array{&state.lit_hdr_texture});
             state.g_buffer = Framebuffer(&state.depth_texture, std::array{ &state.color_texture, &state.normal_texture });
@@ -346,7 +348,8 @@ struct RendererState {
     Texture tone_mapped_texture;
     Texture color_texture;
     Texture normal_texture;
-    Texture g_depth_texture;
+    Texture sunlight_texture;
+    Texture ambientlight_texture;
 
     Framebuffer prepass_framebuffer;
     Framebuffer main_framebuffer;
@@ -450,7 +453,7 @@ int main(int argc, char** argv) {
 
 
             // Apply a tonemap in compute shader
-            /*{
+            {
                 PROFILE_GPU("Tonemap");
 
                 renderer.tone_map_framebuffer.bind(false, true);
@@ -458,14 +461,14 @@ int main(int argc, char** argv) {
                 tonemap_program->set_uniform(HASH("exposure"), exposure);
                 renderer.lit_hdr_texture.bind(0);
                 glDrawArrays(GL_TRIANGLES, 0, 3);
-            }*/
+            }   
 
             // Blit tonemap result to screen
             {
                 PROFILE_GPU("Blit");
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                renderer.main_framebuffer.blit();
+                renderer.tone_map_framebuffer.blit();
             }
 
             glClear(GL_DEPTH_BUFFER_BIT);
