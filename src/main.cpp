@@ -417,9 +417,10 @@ int main(int argc, char** argv) {
             }
 
             {
+                PROFILE_GPU("GBuffer");
                 renderer.main_framebuffer.bind(true, true);
                 gbuffer_choice_program->bind();
-                gbuffer_choice_program->set_uniform(HASH("outputtype"), 1.0f);
+                gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(0));
                 renderer.color_texture.bind(0);
                 renderer.normal_texture.bind(1);
                 renderer.g_depth_texture.bind(2);
@@ -429,7 +430,7 @@ int main(int argc, char** argv) {
 
 
             // Apply a tonemap in compute shader
-            {
+            /*{
                 PROFILE_GPU("Tonemap");
 
                 renderer.tone_map_framebuffer.bind(false, true);
@@ -437,19 +438,22 @@ int main(int argc, char** argv) {
                 tonemap_program->set_uniform(HASH("exposure"), exposure);
                 renderer.lit_hdr_texture.bind(0);
                 glDrawArrays(GL_TRIANGLES, 0, 3);
-            }
+            }*/
 
             // Blit tonemap result to screen
             {
                 PROFILE_GPU("Blit");
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                renderer.tone_map_framebuffer.blit();
+                renderer.main_framebuffer.blit();
             }
 
             glClear(GL_DEPTH_BUFFER_BIT);
             // Draw GUI on top
+
+            glDisable(GL_CULL_FACE);
             gui(imgui);
+            glEnable(GL_CULL_FACE);
         }
 
         glfwSwapBuffers(window);
