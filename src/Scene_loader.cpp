@@ -302,7 +302,7 @@ static void compute_tangents(MeshData& mesh) {
 }
 
 
-Result<std::unique_ptr<Scene>> Scene::from_gltf(const std::string& file_name) {
+Result<std::shared_ptr<StaticMesh>> make_ball(const std::string& file_name) {
     const double time = program_time();
     DEFER(std::cout << file_name << " loaded in " << std::round((program_time() - time) * 100.0) / 100.0 << "s" << std::endl);
 
@@ -310,164 +310,231 @@ Result<std::unique_ptr<Scene>> Scene::from_gltf(const std::string& file_name) {
     tinygltf::Model gltf;
 
     {
-        std::string err;
-        std::string warn;
-
+        std::string err, warn;
         const bool is_ascii = ends_with(file_name, ".gltf");
         const bool ok = is_ascii
-                ? ctx.LoadASCIIFromFile(&gltf, &err, &warn, file_name)
-                : ctx.LoadBinaryFromFile(&gltf, &err, &warn, file_name);
+            ? ctx.LoadASCIIFromFile(&gltf, &err, &warn, file_name)
+            : ctx.LoadBinaryFromFile(&gltf, &err, &warn, file_name);
 
-        if(!err.empty()) {
-            std::cerr << "Error while loading gltf: " << err << std::endl;
-        }
-        if(!warn.empty()) {
-            std::cerr << "Warning while loading gltf: " << warn << std::endl;
-        }
-
-        if(!ok) {
-            return {false, {}};
+        if (!ok) {
+            if (!err.empty()) std::cerr << "Error while loading GLTF: " << err << std::endl;
+            if (!warn.empty()) std::cerr << "Warning while loading GLTF: " << warn << std::endl;
+            return { false, {} };
         }
     }
 
-    std::cout << file_name << " parsed in " << std::round((program_time() - time) * 100.0) / 100.0 << "s" << std::endl;
+    if (gltf.nodes.empty()) {
+        std::cerr << "No nodes found in GLTF file." << std::endl;
+        return { false, {} };
+    }
 
-    auto scene = std::make_unique<Scene>();
+    const tinygltf::Node& node = gltf.nodes[0]; // Get the first node.
+    if (node.mesh < 0) {
+        std::cerr << "No mesh associated with the first node." << std::endl;
+        return { false, {} };
+    }
 
-    std::unordered_map<int, std::shared_ptr<Texture>> textures;
-    std::unordered_map<int, std::shared_ptr<Material>> materials;
-    std::unordered_map<int, glm::mat4> node_transforms;
-    std::vector<std::pair<int, int>> light_nodes;
+    const tinygltf::Mesh& mesh = gltf.meshes[node.mesh];
+    if (mesh.primitives.empty()) {
+        std::cerr << "No primitives found in the first mesh." << std::endl;
+        return { false, {} };
+    }
 
-    {
-        std::vector<int> node_indices;
-        if(gltf.defaultScene >= 0) {
-            node_indices = gltf.scenes[gltf.defaultScene].nodes;
-        } else {
-            for(u32 i = 0; i != gltf.nodes.size(); ++i) {
-                node_indices.push_back(i);
-                node_transforms[i] = base_transform();
+    const tinygltf::Primitive& prim = mesh.primitives[0]; // Get the first primitive.
+    if (prim.mode != TINYGLTF_MODE_TRIANGLES) {
+        std::cerr << "Primitive is not in TRIANGLES mode." << std::endl;
+        return { false, {} };
+    }
+
+    auto mesh_data = build_mesh_data(gltf, prim);
+    if (!mesh_data.is_ok) {
+        return { false, {} };
+    }
+
+    // Compute tangents if missing
+    if (mesh_data.value.vertices[0].tangent_bitangent_sign == glm::vec4(0.0f)) {
+        compute_tangents(mesh_data.value);
+    }
+
+
+    return { true, std::make_shared<StaticMesh>(mesh_data.value) };
+}
+
+
+    Result<std::unique_ptr<Scene>> Scene::from_gltf(const std::string& file_name) {
+        const double time = program_time();
+        DEFER(std::cout << file_name << " loaded in " << std::round((program_time() - time) * 100.0) / 100.0 << "s" << std::endl);
+
+        tinygltf::TinyGLTF ctx;
+        tinygltf::Model gltf;
+
+        {
+            std::string err;
+            std::string warn;
+
+            const bool is_ascii = ends_with(file_name, ".gltf");
+            const bool ok = is_ascii
+                    ? ctx.LoadASCIIFromFile(&gltf, &err, &warn, file_name)
+                    : ctx.LoadBinaryFromFile(&gltf, &err, &warn, file_name);
+
+            if(!err.empty()) {
+                std::cerr << "Error while loading gltf: " << err << std::endl;
+            }
+            if(!warn.empty()) {
+                std::cerr << "Warning while loading gltf: " << warn << std::endl;
+            }
+
+            if(!ok) {
+                return {false, {}};
             }
         }
 
-        for(const int node_index : node_indices) {
-            parse_node_transforms(node_index, gltf, node_transforms);
-        }
+        std::cout << file_name << " parsed in " << std::round((program_time() - time) * 100.0) / 100.0 << "s" << std::endl;
 
-        for(const int node_index : node_indices) {
-            const auto& node = gltf.nodes[node_index];
-            if(const auto it = node.extensions.find("KHR_lights_punctual"); it != node.extensions.end()) {
-                const int light_index = it->second.Get("light").Get<int>();
-                if(light_index < 0 || light_index >= static_cast<int>(gltf.lights.size())) {
-                    continue;
+        auto ball = make_ball(std::string(data_path) + "sphere.glb");
+
+        if (!ball.is_ok) {
+            return { false, {} };
+        }
+        std::shared_ptr<StaticMesh> mesh = std::move(ball.value);
+
+        auto scene = std::make_unique<Scene>(std::move(mesh));
+
+        std::unordered_map<int, std::shared_ptr<Texture>> textures;
+        std::unordered_map<int, std::shared_ptr<Material>> materials;
+        std::unordered_map<int, glm::mat4> node_transforms;
+        std::vector<std::pair<int, int>> light_nodes;
+
+        {
+            std::vector<int> node_indices;
+            if(gltf.defaultScene >= 0) {
+                node_indices = gltf.scenes[gltf.defaultScene].nodes;
+            } else {
+                for(u32 i = 0; i != gltf.nodes.size(); ++i) {
+                    node_indices.push_back(i);
+                    node_transforms[i] = base_transform();
                 }
-                light_nodes.emplace_back(std::pair{node_index, light_index});
+            }
+
+            for(const int node_index : node_indices) {
+                parse_node_transforms(node_index, gltf, node_transforms);
+            }
+
+            for(const int node_index : node_indices) {
+                const auto& node = gltf.nodes[node_index];
+                if(const auto it = node.extensions.find("KHR_lights_punctual"); it != node.extensions.end()) {
+                    const int light_index = it->second.Get("light").Get<int>();
+                    if(light_index < 0 || light_index >= static_cast<int>(gltf.lights.size())) {
+                        continue;
+                    }
+                    light_nodes.emplace_back(std::pair{node_index, light_index});
+                }
             }
         }
-    }
 
-    for(auto [node_index, node_transform] : node_transforms) {
-        const tinygltf::Node& node = gltf.nodes[node_index];
+        for(auto [node_index, node_transform] : node_transforms) {
+            const tinygltf::Node& node = gltf.nodes[node_index];
 
-        if(node.mesh < 0) {
-            continue;
-        }
-
-        const tinygltf::Mesh& mesh = gltf.meshes[node.mesh];
-
-        for(size_t j = 0; j != mesh.primitives.size(); ++j) {
-            const tinygltf::Primitive& prim = mesh.primitives[j];
-
-            if(prim.mode != TINYGLTF_MODE_TRIANGLES) {
+            if(node.mesh < 0) {
                 continue;
             }
 
-            auto mesh = build_mesh_data(gltf, prim);
-            if(!mesh.is_ok) {
-                return {false, {}};
-            }
+            const tinygltf::Mesh& mesh = gltf.meshes[node.mesh];
 
-            if(mesh.value.vertices[0].tangent_bitangent_sign == glm::vec4(0.0f)) {
-                compute_tangents(mesh.value);
-            }
+            for(size_t j = 0; j != mesh.primitives.size(); ++j) {
+                const tinygltf::Primitive& prim = mesh.primitives[j];
 
-            std::shared_ptr<Material> material;
-            if(prim.material >= 0) {
-                auto& mat = materials[prim.material];
-
-                if(!mat) {
-                    const auto& albedo_info = gltf.materials[prim.material].pbrMetallicRoughness.baseColorTexture;
-                    const auto& normal_info = gltf.materials[prim.material].normalTexture;
-
-                    auto load_texture = [&](auto texture_info, bool as_sRGB) -> std::shared_ptr<Texture> {
-                        if(texture_info.texCoord != 0) {
-                            std::cerr << "Unsupported texture coordinate channel (" << texture_info.texCoord << ")" << std::endl;
-                            return nullptr;
-                        }
-
-                        if(texture_info.index < 0) {
-                            return nullptr;
-                        }
-
-                        const int index = gltf.textures[texture_info.index].source;
-                        if(index < 0) {
-                            return nullptr;
-                        }
-
-                        auto& texture = textures[index];
-                        if(!texture) {
-                            if(const auto r = build_texture_data(gltf.images[index], as_sRGB); r.is_ok) {
-                                texture = std::make_shared<Texture>(r.value);
-                            }
-                        }
-                        return texture;
-                    };
-
-                    auto albedo = load_texture(albedo_info, true);
-                    auto normal = load_texture(normal_info, false);
-
-                    if(!albedo) {
-                        mat = Material::empty_material();
-                    } else if(!normal) {
-                        mat = std::make_shared<Material>(Material::textured_material());
-                        mat->set_texture(0u, albedo);
-                    } else {
-                        mat = std::make_shared<Material>(Material::textured_normal_mapped_material());
-                        mat->set_texture(0u, albedo);
-                        mat->set_texture(1u, normal);
-                    }
-                    //mat = std::make_shared<Material>(Material::g_buffer_material());
+                if(prim.mode != TINYGLTF_MODE_TRIANGLES) {
+                    continue;
                 }
 
-                material = mat;
+                auto mesh = build_mesh_data(gltf, prim);
+                if(!mesh.is_ok) {
+                    return {false, {}};
+                }
+
+                if(mesh.value.vertices[0].tangent_bitangent_sign == glm::vec4(0.0f)) {
+                    compute_tangents(mesh.value);
+                }
+
+                std::shared_ptr<Material> material;
+                if(prim.material >= 0) {
+                    auto& mat = materials[prim.material];
+
+                    if(!mat) {
+                        const auto& albedo_info = gltf.materials[prim.material].pbrMetallicRoughness.baseColorTexture;
+                        const auto& normal_info = gltf.materials[prim.material].normalTexture;
+
+                        auto load_texture = [&](auto texture_info, bool as_sRGB) -> std::shared_ptr<Texture> {
+                            if(texture_info.texCoord != 0) {
+                                std::cerr << "Unsupported texture coordinate channel (" << texture_info.texCoord << ")" << std::endl;
+                                return nullptr;
+                            }
+
+                            if(texture_info.index < 0) {
+                                return nullptr;
+                            }
+
+                            const int index = gltf.textures[texture_info.index].source;
+                            if(index < 0) {
+                                return nullptr;
+                            }
+
+                            auto& texture = textures[index];
+                            if(!texture) {
+                                if(const auto r = build_texture_data(gltf.images[index], as_sRGB); r.is_ok) {
+                                    texture = std::make_shared<Texture>(r.value);
+                                }
+                            }
+                            return texture;
+                        };
+
+                        auto albedo = load_texture(albedo_info, true);
+                        auto normal = load_texture(normal_info, false);
+
+                        if(!albedo) {
+                            mat = Material::empty_material();
+                        } else if(!normal) {
+                            mat = std::make_shared<Material>(Material::textured_material());
+                            mat->set_texture(0u, albedo);
+                        } else {
+                            mat = std::make_shared<Material>(Material::textured_normal_mapped_material());
+                            mat->set_texture(0u, albedo);
+                            mat->set_texture(1u, normal);
+                        }
+                        //mat = std::make_shared<Material>(Material::g_buffer_material());
+                    }
+
+                    material = mat;
+                }
+
+                auto scene_object = SceneObject(std::make_shared<StaticMesh>(mesh.value), std::move(material));
+                scene_object.set_transform(node_transform);
+                scene->add_object(std::move(scene_object));
             }
-
-            auto scene_object = SceneObject(std::make_shared<StaticMesh>(mesh.value), std::move(material));
-            scene_object.set_transform(node_transform);
-            scene->add_object(std::move(scene_object));
         }
-    }
 
-    for(auto [node_index, light_index] : light_nodes) {
-        const auto& gltf_light = gltf.lights[light_index];
+        for(auto [node_index, light_index] : light_nodes) {
+            const auto& gltf_light = gltf.lights[light_index];
 
-        const glm::vec3 color = glm::vec3(float(gltf_light.color[0]), float(gltf_light.color[1]), float(gltf_light.color[2])) * float(gltf_light.intensity);;
+            const glm::vec3 color = glm::vec3(float(gltf_light.color[0]), float(gltf_light.color[1]), float(gltf_light.color[2])) * float(gltf_light.intensity);;
 
-        PointLight light;
-        light.set_position(node_transforms[node_index][3]);
-        light.set_color(color);
-        if(gltf_light.range > 0.0) {
-            light.set_radius(float(gltf_light.range));
-        } else {
-            const float intensity = glm::dot(color, glm::vec3(1.0f));
-            light.set_radius(std::sqrt(intensity * 1000.0f)); // Put radius where lum < 0.1%
+            PointLight light;
+            light.set_position(node_transforms[node_index][3]);
+            light.set_color(color);
+            if(gltf_light.range > 0.0) {
+                light.set_radius(float(gltf_light.range));
+            } else {
+                const float intensity = glm::dot(color, glm::vec3(1.0f));
+                light.set_radius(std::sqrt(intensity * 1000.0f)); // Put radius where lum < 0.1%
+            }
+            scene->add_light(light);
         }
-        scene->add_light(light);
+
+
+
+        return {true, std::move(scene)};
     }
-
-
-    return {true, std::move(scene)};
-}
 
 }
 

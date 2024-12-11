@@ -331,10 +331,9 @@ struct RendererState {
             state.prepass_framebuffer = Framebuffer(&state.depth_texture, std::array<Texture*, 0>{});
             state.color_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.sunlight_texture = Texture(size, ImageFormat::RGBA8_sRGB);
-            state.ambientlight_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
             state.main_framebuffer = Framebuffer(nullptr, std::array{&state.lit_hdr_texture});
-            state.g_buffer = Framebuffer(&state.depth_texture, std::array{ &state.color_texture, &state.normal_texture });
+            state.g_buffer = Framebuffer(&state.depth_texture, std::array{ &state.color_texture, &state.normal_texture, &state.sunlight_texture });
             state.tone_map_framebuffer = Framebuffer(nullptr, std::array{&state.tone_mapped_texture});
         }
 
@@ -349,9 +348,9 @@ struct RendererState {
     Texture color_texture;
     Texture normal_texture;
     Texture sunlight_texture;
-    Texture ambientlight_texture;
 
     Framebuffer prepass_framebuffer;
+    Framebuffer sunlight_framebuffer;
     Framebuffer main_framebuffer;
     Framebuffer tone_map_framebuffer;
     Framebuffer g_buffer;
@@ -432,7 +431,7 @@ int main(int argc, char** argv) {
             }
             // Render the scene
             {
-                PROFILE_GPU("Main pass");
+                PROFILE_GPU("GBuffer pass");
 
                 //renderer.main_framebuffer.bind(false, true);
                 renderer.g_buffer.bind(false, true);
@@ -440,15 +439,40 @@ int main(int argc, char** argv) {
             }
 
             {
-                PROFILE_GPU("GBuffer");
-                renderer.main_framebuffer.bind(true, true);
-                gbuffer_choice_program->bind();
-                gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(debug_opt));
-                renderer.color_texture.bind(0);
-                renderer.normal_texture.bind(1);
-                renderer.depth_texture.bind(2);
-                glDrawArrays(GL_TRIANGLES, 0, 3);
+                PROFILE_GPU("GBuffer blitting");
+                if (debug_opt != 0) { // just blit
+                    renderer.main_framebuffer.bind(true, true);
+                    gbuffer_choice_program->bind();
+                    gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(debug_opt));
+                    renderer.sunlight_texture.bind(0);
+                    renderer.normal_texture.bind(1);
+                    renderer.depth_texture.bind(2);
+                    glDrawArrays(GL_TRIANGLES, 0, 3);
+                }
+                else { // render lights
+                    glDepthMask(GL_FALSE);
+                    renderer.main_framebuffer.bind(false, true);
+                    gbuffer_choice_program->bind();
+                    gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(0));
+                    renderer.sunlight_texture.bind(0);
+                    renderer.normal_texture.bind(1);
+                    renderer.depth_texture.bind(2);
+                    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+                    glCullFace(GL_FRONT);
+                    glDepthMask(GL_TRUE);
+                    renderer.color_texture.bind(0);
+                    renderer.normal_texture.bind(1);
+                    renderer.depth_texture.bind(2);
+                    scene->render_lights();
+                    glCullFace(GL_BACK);
+                }
                 //renderer.g_buffer.blit();
+            }
+
+            // render lights
+            if (debug_opt == 0) {
+
             }
 
 
@@ -468,7 +492,7 @@ int main(int argc, char** argv) {
                 PROFILE_GPU("Blit");
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                renderer.tone_map_framebuffer.blit();
+                renderer.main_framebuffer.blit();
             }
 
             glClear(GL_DEPTH_BUFFER_BIT);

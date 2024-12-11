@@ -8,7 +8,11 @@
 
 namespace OM3D {
 
-Scene::Scene() {
+    Scene::Scene() {
+    }
+
+Scene::Scene(std::shared_ptr<StaticMesh> mesh) {
+    _ball = std::move(mesh);
 }
 
 void Scene::add_object(SceneObject obj) {
@@ -16,7 +20,15 @@ void Scene::add_object(SceneObject obj) {
 }
 
 void Scene::add_light(PointLight obj) {
+      
+    auto pos = obj.position();
+    auto radius = obj.radius();
     _point_lights.emplace_back(std::move(obj));
+    auto obj_light = SceneObject(_ball, std::make_shared<Material>(std::move(Material::light_sphere_material())));
+    
+    obj_light.set_transform(glm::translate(glm::mat4(1.0), pos) * glm::scale(glm::mat4(1.0), glm::vec3(radius / 20.0) ));
+        
+    _light_balls.emplace_back(std::move(obj_light));
 }
 
 Span<const SceneObject> Scene::objects() const {
@@ -107,6 +119,42 @@ void Scene::render() const {
             obj.render();
     }
 }
+
+void Scene::render_lights() const
+{
+    TypedBuffer<shader::FrameData> buffer(nullptr, 1);
+    {
+        auto mapping = buffer.map(AccessType::WriteOnly);
+        mapping[0].camera.view_proj = _camera.view_proj_matrix();
+    }
+    buffer.bind(BufferUsage::Uniform, 3);
+
+    TypedBuffer<shader::PointLight> light_buffer(nullptr, size_t(1));
+
+    const Frustum& frustum = _camera.build_frustum();
+    glm::vec3 cameraOrigin = _camera.position();
+
+    for (int i = 0; i < _point_lights.size(); i++) {
+        const SceneObject& obj = _light_balls[i];
+        if (isOnFrustum(frustum, obj, _camera)) {
+            const PointLight& l = _point_lights[i];
+            {
+                auto mapping = light_buffer.map(AccessType::WriteOnly);
+                mapping[0] = {
+                        l.position(),
+                        l.radius(),
+                        l.color(),
+                        0.0f
+                 };
+            }
+            light_buffer.bind(BufferUsage::Storage, 4);
+            obj.render();
+        }
+    }
+
+}
+
+
 
 void Scene::zprepass() const {
     // Fill and bind frame data buffer

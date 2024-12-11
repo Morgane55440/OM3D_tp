@@ -39,6 +39,11 @@ void Material::bind() const {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         break;
+
+        case BlendMode::Add:
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
+        break;
     }
 
     switch(_depth_test_mode) {
@@ -83,19 +88,22 @@ std::shared_ptr<Material> Material::empty_material() {
 
 Material Material::textured_material() {
     Material material;
-    material._program = Program::from_files("lit_2.frag", "basic.vert", {"TEXTURED"});
+    material._program = Program::from_files("sun.frag", "basic.vert", {"TEXTURED"});
     return material;
 }
 
 Material Material::textured_normal_mapped_material() {
     Material material;
-    material._program = Program::from_files("lit_2.frag", "basic.vert", std::array<std::string, 2>{"TEXTURED", "NORMAL_MAPPED"});
+    material._program = Program::from_files("sun.frag", "basic.vert", std::array<std::string, 2>{"TEXTURED", "NORMAL_MAPPED"});
     return material;
 }
 
-Material Material::g_buffer_material() {
+
+Material Material::light_sphere_material()
+{
     Material material;
-    material._program = Program::from_files("lit_2.frag", "basic.vert", std::array<std::string, 2>{"TEXTURED", "NORMAL_MAPPED"});
+    material._program = Program::from_files("lit_2.frag", "lights.vert", std::array<std::string, 0>{});
+    material._blend_mode = BlendMode::Add;
     return material;
 }
 
