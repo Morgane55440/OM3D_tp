@@ -26,7 +26,7 @@ void Scene::add_light(PointLight obj) {
     _point_lights.emplace_back(std::move(obj));
     auto obj_light = SceneObject(_ball, std::make_shared<Material>(std::move(Material::light_sphere_material())));
     
-    obj_light.set_transform(glm::translate(glm::mat4(1.0), pos) * glm::scale(glm::mat4(1.0), glm::vec3(radius / 20.0) ));
+    obj_light.set_transform(glm::translate(glm::mat4(1.0), pos) * glm::scale(glm::mat4(1.0), glm::vec3(radius / 5.0) ));
         
     _light_balls.emplace_back(std::move(obj_light));
 }
@@ -120,7 +120,7 @@ void Scene::render() const {
     }
 }
 
-void Scene::render_lights() const
+void Scene::render_lights(glm::uvec2 window_size) const
 {
     TypedBuffer<shader::FrameData> buffer(nullptr, 1);
     {
@@ -129,7 +129,14 @@ void Scene::render_lights() const
     }
     buffer.bind(BufferUsage::Uniform, 3);
 
-    TypedBuffer<shader::PointLight> light_buffer(nullptr, size_t(1));
+    TypedBuffer<shader::WindowSize> size_buffer(nullptr, 1);
+    {
+        auto mapping = size_buffer.map(AccessType::WriteOnly);
+        mapping[0].inner = window_size;
+    }
+    size_buffer.bind(BufferUsage::Uniform, 5);
+
+    TypedBuffer<shader::PointLight> light_buffer(nullptr, 1);
 
     const Frustum& frustum = _camera.build_frustum();
     glm::vec3 cameraOrigin = _camera.position();

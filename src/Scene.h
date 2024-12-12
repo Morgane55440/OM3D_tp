@@ -19,7 +19,7 @@ class Scene : NonMovable {
         static Result<std::unique_ptr<Scene>> from_gltf(const std::string& file_name);
 
         void render() const;
-        void render_lights() const;
+        void render_lights(glm::uvec2 window_size) const;
         void zprepass() const;
 
         void add_object(SceneObject obj);

@@ -464,7 +464,7 @@ int main(int argc, char** argv) {
                     renderer.color_texture.bind(0);
                     renderer.normal_texture.bind(1);
                     renderer.depth_texture.bind(2);
-                    scene->render_lights();
+                    scene->render_lights(renderer.size);
                     glCullFace(GL_BACK);
                 }
                 //renderer.g_buffer.blit();

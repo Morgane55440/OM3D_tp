@@ -22,6 +22,9 @@ layout(binding = 3) uniform Data {
 layout(binding = 4) buffer PointLights {
         PointLight point_lights[];
 };
+layout(binding = 5) uniform WindowData {
+    WindowSize window_size;
+};
 
 
 const vec3 ambient = vec3(0.0);
@@ -36,9 +39,10 @@ vec3 unproject(vec2 uv, float depth, mat4 inv_viewproj) {
 void main() {
     const mat4 inv = inverse(frame.camera.view_proj);
     const ivec2 coord = ivec2(gl_FragCoord.xy);
+    const vec2 uv = vec2(gl_FragCoord.xy) / vec2(window_size.inner);
     const vec3 normal = texelFetch(in_normal, coord, 0).xyz;
     const float pixel_depth = texelFetch(in_depth, coord, 0).x;
-    const vec3 pos = unproject(gl_FragCoord.xy, pixel_depth, inv);
+    const vec3 pos = unproject(uv, pixel_depth, inv);
 
     PointLight light = point_lights[0];
    const vec3 to_light = (light.position - pos);
@@ -46,17 +50,20 @@ void main() {
    const vec3 light_vec = to_light / dist;
 
    const float NoL = dot(light_vec, normal);
-   const float att = attenuation(dist, light.radius);
+   const float att = attenuation(dist, light.radius * 100);
    vec3 acc = vec3(0.0, 0.0, 0.0);
-   if (NoL > 0 && att > 0.0f) {
+   if (NoL > 0.0f && att > 0.0f) {
         acc = light.color * (NoL * att);
    }
    
 
     out_color = vec4(0.0,0.0, 0.0, 1.0);
     if (pixel_depth > gl_FragCoord.z) {
-           out_color.xyz = acc * texelFetch(in_color, coord, 0).xyz;
+           out_color.xyz = acc *  texelFetch(in_color, coord, 0).xyz ;
+
+           
     }
+    //out_color.g = (uv.x + uv.y) / 4;
 
     out_normal = vec4(normal, 1);
 

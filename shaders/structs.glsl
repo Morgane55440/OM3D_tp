@@ -19,3 +19,7 @@ struct PointLight {
     float padding_1;
 };
 
+struct WindowSize {
+    uvec2 inner;
+};
+
