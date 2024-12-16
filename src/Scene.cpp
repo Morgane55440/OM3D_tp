@@ -26,7 +26,7 @@ void Scene::add_light(PointLight obj) {
     _point_lights.emplace_back(std::move(obj));
     auto obj_light = SceneObject(_ball, std::make_shared<Material>(std::move(Material::light_sphere_material())));
     
-    obj_light.set_transform(glm::translate(glm::mat4(1.0), pos) * glm::scale(glm::mat4(1.0), glm::vec3(radius / 5.0) ));
+    obj_light.set_transform(glm::translate(glm::mat4(1.0), pos) * glm::scale(glm::mat4(1.0), glm::vec3(radius / 3.2) ));
         
     _light_balls.emplace_back(std::move(obj_light));
 }

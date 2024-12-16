@@ -40,7 +40,7 @@ void main() {
     const mat4 inv = inverse(frame.camera.view_proj);
     const ivec2 coord = ivec2(gl_FragCoord.xy);
     const vec2 uv = vec2(gl_FragCoord.xy) / vec2(window_size.inner);
-    const vec3 normal = texelFetch(in_normal, coord, 0).xyz;
+    const vec3 normal = texelFetch(in_normal, coord, 0).xyz * 2 - 1;
     const float pixel_depth = texelFetch(in_depth, coord, 0).x;
     const vec3 pos = unproject(uv, pixel_depth, inv);
 
@@ -58,12 +58,8 @@ void main() {
    
 
     out_color = vec4(0.0,0.0, 0.0, 1.0);
-    if (pixel_depth > gl_FragCoord.z) {
-           out_color.xyz = acc *  texelFetch(in_color, coord, 0).xyz ;
+    out_color.xyz = acc *  texelFetch(in_color, coord, 0).xyz ;
 
-           
-    }
-    //out_color.g = (uv.x + uv.y) / 4;
 
     out_normal = vec4(normal, 1);
 
