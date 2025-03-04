@@ -102,7 +102,7 @@ Material Material::textured_normal_mapped_material() {
 Material Material::light_sphere_material()
 {
     Material material;
-    material._program = Program::from_files("ssao.frag", "lights.vert", std::array<std::string, 0>{});
+    material._program = Program::from_files("ssao_mc.frag", "lights.vert", std::array<std::string, 0>{});
     material._blend_mode = BlendMode::Add;
     return material;
 }

@@ -63,8 +63,11 @@ vec3 ComputeIndirectColor(vec3 pos, vec3 normal, vec3 lightColor, vec3 light_vec
     bool bounceHit = rayMarchBounce(pos, reflectedRay, 5.0, 50, invProj, hitPos);
 
     if (bounceHit) {
-        vec3 hitColor = texelFetch(in_position, ivec2(hitPos.xy), 0).xyz;
-        vec3 hitNormal = texelFetch(in_normal, ivec2(hitPos.xy), 0).xyz * 2.0 - 1.0;
+        vec4 clipSpace = invProj * vec4(hitPos, 1.0);
+        vec2 hitUV = clipSpace.xy / clipSpace.w * 0.5 + 0.5;
+        ivec2 hitCoord = ivec2(hitUV * window_size.inner);
+        vec3 hitColor = texelFetch(in_position, ivec2(hitCoord.xy), 0).xyz;
+        vec3 hitNormal = texelFetch(in_normal, ivec2(hitCoord.xy), 0).xyz * 2.0 - 1.0;
 
         float diffuseFactor = max(dot(hitNormal, light_vec), 0.0);
         return hitColor * lightColor * diffuseFactor;
