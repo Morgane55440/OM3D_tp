@@ -13,7 +13,6 @@ void main() {
     out_uv = in_uv;
     out_color = in_color / 255.0;
 
-
     const mat4 proj = mat4(2.0 / viewport_size.x, 0.0, 0.0, 0.0,
                            0.0, 2.0 / -viewport_size.y, 0.0, 0.0,
                            0.0, 0.0, -1.0, 0.0,

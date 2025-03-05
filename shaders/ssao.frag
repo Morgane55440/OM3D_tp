@@ -2,31 +2,24 @@
 
 #include "utils.glsl"
 
-// fragment shader of the ssao pass
+// fragment shader of the direct lighning and ssao pass
 
 // #define DEBUG_NORMAL
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out vec4 out_normal;
 
-
-
 layout(binding = 0) uniform sampler2D in_color;
 layout(binding = 1) uniform sampler2D in_normal;
 layout(binding = 2) uniform sampler2D in_depth;
-layout(binding = 3) uniform sampler2D in_position;
 
 layout(binding = 3) uniform Data {
     FrameData frame;
 };
 
-layout(binding = 4) buffer PointLights {
-        PointLight point_lights[];
-};
-layout(binding = 5) uniform WindowData {
+layout(binding = 4) uniform WindowData {
     WindowSize window_size;
 };
-
 
 const vec3 ambient = vec3(0.0);
 
@@ -36,44 +29,49 @@ vec3 unproject(vec2 uv, float depth, mat4 inv_viewproj) {
     return p.xyz / p.w;
 }
 
-bool rayMarchBounce(vec3 startPos, vec3 dir, float maxDist, int steps, mat4 invProj, out vec3 hitPos) {
-    float stepSize = maxDist / float(steps);
-    vec3 pos = startPos;
+float rand() {
+    return fract(sin(gl_FragCoord.x * 12.9898 + gl_FragCoord.y * 78.233) * 43758.5453);
+}
 
-    for (int i = 0; i < steps; i++) {
-        pos += dir * stepSize;
-        vec4 clipSpace = invProj * vec4(pos, 1.0);
-        vec2 uv = clipSpace.xy / clipSpace.w * 0.5 + 0.5;
-        float sceneDepth = texture(in_depth, uv).r * 2.0 - 1.0;
+vec3 randomHemisphereDirection(vec3 normal, vec2 rand) {
+    float phi = rand.x * 2.0 * 3.14159265;
+    float cosTheta = sqrt(1.0 - rand.y);
+    float sinTheta = sqrt(rand.y);
 
-        if (sceneDepth < clipSpace.z / clipSpace.w) {
-            hitPos = pos;
-            return true;
+    vec3 tangent = normalize(cross(normal, vec3(0.0, 1.0, 0.0)));
+    vec3 bitangent = cross(normal, tangent);
+    return normalize(tangent * cos(phi) * sinTheta + bitangent * sin(phi) * sinTheta + normal * cosTheta);
+}
+
+// Monte Carlo AO
+float calculateAO(vec3 fragPos, vec3 normal, ivec2 coord, mat4 invProj) {
+    const int numSamples = 16;
+    const float radius = 0.1;
+
+    float occlusion = 0.0;
+    for (int i = 0; i < numSamples; ++i) {
+        // random direction sample around fragment pos
+        vec2 randUV = vec2(rand(), rand());
+        vec3 sampleDir = randomHemisphereDirection(normal, randUV);
+        
+        // pos of the neighbor pixel
+        vec3 samplePos = fragPos + sampleDir * radius;
+
+        // Screen space
+        vec4 projPos = invProj * vec4(samplePos, 1.0);
+        projPos.xyz /= projPos.w;
+        vec2 sampleUV = projPos.xy * 0.5 + 0.5;  //  [-1;1] -> [0;1]
+
+        // Get the depth of the sample pixel
+        float sampleDepth = texture(in_depth, coord + sampleUV).x;
+
+        // Check if there is an occlusion
+        if (sampleDepth < projPos.z - 0.01) {
+            occlusion += 1.0;
         }
     }
 
-    hitPos = vec3(0.0);
-    return false;
-}
-
-vec3 ComputeIndirectColor(vec3 pos, vec3 normal, vec3 lightColor, vec3 light_vec, mat4 invProj) {
-    vec3 reflectedRay = reflect(-light_vec, normal);
-
-    vec3 hitPos;
-    bool bounceHit = rayMarchBounce(pos, reflectedRay, 5.0, 50, invProj, hitPos);
-
-    if (bounceHit) {
-        vec4 clipSpace = invProj * vec4(hitPos, 1.0);
-        vec2 hitUV = clipSpace.xy / clipSpace.w * 0.5 + 0.5;
-        ivec2 hitCoord = ivec2(hitUV * window_size.inner);
-        vec3 hitColor = texelFetch(in_position, ivec2(hitCoord.xy), 0).xyz;
-        vec3 hitNormal = texelFetch(in_normal, ivec2(hitCoord.xy), 0).xyz * 2.0 - 1.0;
-
-        float diffuseFactor = max(dot(hitNormal, light_vec), 0.0);
-        return hitColor * lightColor * diffuseFactor;
-    }
-
-    return vec3(0.0);
+    return 1.0 - (occlusion / float(numSamples));
 }
 
 void main() {
@@ -84,25 +82,12 @@ void main() {
     const float pixel_depth = texelFetch(in_depth, coord, 0).x;
     const vec3 pos = unproject(uv, pixel_depth, invProj);
 
-    PointLight light = point_lights[0];
-    const vec3 to_light = (light.position - pos);
-    const float dist = length(to_light);
-    const vec3 light_vec = to_light / dist;
+    vec3 direct_color = texelFetch(in_color, coord, 0).rgb;
 
-    const float NoL = dot(light_vec, normal);
-    const float att = attenuation(dist, light.radius * 100);
-    vec3 acc = vec3(0.0, 0.0, 0.0);
-    if (NoL > 0.0f && att > 0.0f) {
-        acc = light.color * (NoL * att);
-    }
+    float ao = calculateAO(pos, normal, coord, invProj);
+    ao = mix(1.0, ao, 0.6);
 
-    vec3 direct_color = vec3(0.0);
-    direct_color = (acc *  texelFetch(in_color, coord, 0).xyz);
-
-    vec3 indirect_color = ComputeIndirectColor(pos, normal, light.color, light_vec, invProj);
-
-    out_color = vec4(direct_color + indirect_color, 1.0);
+    out_color = vec4(direct_color * ao, 1.0);
 
     out_normal = vec4(normal, 1);
-
 }
