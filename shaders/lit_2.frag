@@ -40,21 +40,21 @@ void main() {
     const mat4 inv = inverse(frame.camera.view_proj);
     const ivec2 coord = ivec2(gl_FragCoord.xy);
     const vec2 uv = vec2(gl_FragCoord.xy) / vec2(window_size.inner);
-    const vec3 normal = texelFetch(in_normal, coord, 0).xyz * 2 - 1;
+    const vec3 normal = texelFetch(in_normal, coord, 0).xyz * 2.0 - 1.0;
     const float pixel_depth = texelFetch(in_depth, coord, 0).x;
     const vec3 pos = unproject(uv, pixel_depth, inv);
 
     PointLight light = point_lights[0];
-   const vec3 to_light = (light.position - pos);
-   const float dist = length(to_light);
-   const vec3 light_vec = to_light / dist;
+    const vec3 to_light = (light.position - pos);
+    const float dist = length(to_light);
+    const vec3 light_vec = to_light / dist;
 
-   const float NoL = dot(light_vec, normal);
-   const float att = attenuation(dist, light.radius * 100);
-   vec3 acc = vec3(0.0, 0.0, 0.0);
-   if (NoL > 0.0f && att > 0.0f) {
+    const float NoL = dot(light_vec, normal);
+    const float att = attenuation(dist, light.radius * 100);
+    vec3 acc = vec3(0.0, 0.0, 0.0);
+    if (NoL > 0.0f && att > 0.0f) {
         acc = light.color * (NoL * att);
-   }
+    }
    
 
     out_color = vec4(0.0,0.0, 0.0, 1.0);

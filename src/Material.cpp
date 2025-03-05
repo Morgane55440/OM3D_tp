@@ -80,7 +80,7 @@ std::shared_ptr<Material> Material::empty_material() {
     auto material = weak_material.lock();
     if(!material) {
         material = std::make_shared<Material>();
-        material->_program = Program::from_files("lit.frag", "basic.vert");
+        material->_program = Program::from_files("gbuffer.frag", "basic.vert");
         weak_material = material;
     }
     return material;
@@ -88,16 +88,15 @@ std::shared_ptr<Material> Material::empty_material() {
 
 Material Material::textured_material() {
     Material material;
-    material._program = Program::from_files("sun.frag", "basic.vert", {"TEXTURED"});
+    material._program = Program::from_files("gbuffer.frag", "basic.vert", {"TEXTURED"});
     return material;
 }
 
 Material Material::textured_normal_mapped_material() {
     Material material;
-    material._program = Program::from_files("sun.frag", "basic.vert", std::array<std::string, 2>{"TEXTURED", "NORMAL_MAPPED"});
+    material._program = Program::from_files("gbuffer.frag", "basic.vert", std::array<std::string, 2>{"TEXTURED", "NORMAL_MAPPED"});
     return material;
 }
-
 
 Material Material::light_sphere_material()
 {

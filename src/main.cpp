@@ -334,7 +334,7 @@ struct RendererState {
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
             state.full_light_texture = Texture(size, ImageFormat::RGBA16_FLOAT);
             state.main_framebuffer = Framebuffer(nullptr, std::array{&state.lit_hdr_texture});
-            state.g_buffer = Framebuffer(&state.depth_texture, std::array{&state.color_texture, &state.normal_texture, &state.sunlight_texture});
+            state.g_buffer = Framebuffer(&state.depth_texture, std::array{&state.color_texture, &state.normal_texture});
             state.tone_map_framebuffer = Framebuffer(nullptr, std::array{&state.tone_mapped_texture});
             state.indirect_lights_framebuffer = Framebuffer(nullptr, std::array{&state.full_light_texture});
         }
@@ -390,6 +390,7 @@ int main(int argc, char** argv) {
     scene = create_default_scene();
 
     auto tonemap_program = Program::from_files("tonemap.frag", "screen.vert");
+    auto gbuffer_program = Program::from_files("gbuffer.frag", "basic.vert");
     auto gbuffer_choice_program = Program::from_files("gbufferchoice.frag", "screen.vert");
     auto indirect_lights_program = Program::from_files("indirect_lights.frag", "indirect_lights.vert");
     RendererState renderer;
@@ -438,7 +439,8 @@ int main(int argc, char** argv) {
             {
                 PROFILE_GPU("GBuffer pass");
                 //renderer.main_framebuffer.bind(false, true);
-                renderer.g_buffer.bind(false, true);
+                renderer.g_buffer.bind(true, true);
+                gbuffer_program->bind();
                 scene->render();
             }
 
@@ -449,23 +451,16 @@ int main(int argc, char** argv) {
                     renderer.main_framebuffer.bind(true, true);
                     gbuffer_choice_program->bind();
                     gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(debug_opt));
-                    renderer.sunlight_texture.bind(0);
+                    renderer.color_texture.bind(0);
                     renderer.normal_texture.bind(1);
                     renderer.depth_texture.bind(2);
                     glDrawArrays(GL_TRIANGLES, 0, 3);
                 }
                 else { // render lights
-                    glDepthMask(GL_FALSE);
-                    renderer.main_framebuffer.bind(false, true);
-                    gbuffer_choice_program->bind();
-                    gbuffer_choice_program->set_uniform(HASH("outputtype"), OM3D::u32(0));
-                    renderer.sunlight_texture.bind(0);
-                    renderer.normal_texture.bind(1);
-                    renderer.depth_texture.bind(2);
-                    glDrawArrays(GL_TRIANGLES, 0, 3);
 
                     glCullFace(GL_FRONT);
                     glDepthMask(GL_TRUE);
+                    renderer.main_framebuffer.bind(true, true);
                     renderer.color_texture.bind(0);
                     renderer.normal_texture.bind(1);
                     renderer.depth_texture.bind(2);
@@ -496,7 +491,7 @@ int main(int argc, char** argv) {
                 renderer.tone_map_framebuffer.bind(false, true);
                 tonemap_program->bind();
                 tonemap_program->set_uniform(HASH("exposure"), exposure);
-                renderer.full_light_texture.bind(0);
+                renderer.lit_hdr_texture.bind(0);
                 glDrawArrays(GL_TRIANGLES, 0, 3);
             }   
 

@@ -115,7 +115,7 @@
         const vec2 uv = vec2(gl_FragCoord.xy) / vec2(window_size.inner);
         const float pixel_depth = texelFetch(in_depth, coord, 0).x;
         const vec3 pos = unproject(uv, pixel_depth, invProj);
-        const vec3 normal = texelFetch(in_normal, coord, 0).xyz;
+        const vec3 normal = texelFetch(in_normal, coord, 0).xyz * 2.0 - 1.0;
 
         const vec3 direct_light = texelFetch(in_hdr, coord, 0).rgb;
 
