@@ -326,13 +326,13 @@ struct RendererState {
 
         if(state.size.x > 0 && state.size.y > 0) {
             state.depth_texture = Texture(size, ImageFormat::Depth32_FLOAT);
-            state.lit_hdr_texture = Texture(size, ImageFormat::RGBA16_FLOAT);
+            state.lit_hdr_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.tone_mapped_texture = Texture(size, ImageFormat::RGBA8_UNORM);
             state.prepass_framebuffer = Framebuffer(&state.depth_texture, std::array<Texture*, 0>{});
             state.color_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.sunlight_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
-            state.full_light_texture = Texture(size, ImageFormat::RGBA16_FLOAT);
+            state.full_light_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.main_framebuffer = Framebuffer(nullptr, std::array{&state.lit_hdr_texture});
             state.g_buffer = Framebuffer(&state.depth_texture, std::array{&state.color_texture, &state.normal_texture});
             state.tone_map_framebuffer = Framebuffer(nullptr, std::array{&state.tone_mapped_texture});
@@ -392,7 +392,7 @@ int main(int argc, char** argv) {
     auto tonemap_program = Program::from_files("tonemap.frag", "screen.vert");
     auto gbuffer_program = Program::from_files("gbuffer.frag", "basic.vert");
     auto gbuffer_choice_program = Program::from_files("gbufferchoice.frag", "screen.vert");
-    auto indirect_lights_program = Program::from_files("indirect_lights.frag", "indirect_lights.vert");
+    auto indirect_lights_program = Program::from_files("indirect_lights_debug.frag", "screen.vert");
     RendererState renderer;
 
     glEnable(GL_CULL_FACE);
@@ -470,19 +470,17 @@ int main(int argc, char** argv) {
                 //renderer.g_buffer.blit();
             }
 
-            // render lights
-            if (debug_opt == 0) {
-
-            }
-
             {
+                std::cout << "Executing Indirect Lighting Pass" << std::endl;
                 PROFILE_GPU("Indirect Lightning pass");
+                glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "indirect pass");
                 renderer.indirect_lights_framebuffer.bind(false, true);
                 indirect_lights_program->bind();
                 renderer.lit_hdr_texture.bind(0);
                 renderer.normal_texture.bind(1);
                 renderer.depth_texture.bind(2);
                 glDrawArrays(GL_TRIANGLES, 0, 3);
+                glPopDebugGroup();
             }
 
             // Apply a tonemap in compute shader
@@ -491,7 +489,7 @@ int main(int argc, char** argv) {
                 renderer.tone_map_framebuffer.bind(false, true);
                 tonemap_program->bind();
                 tonemap_program->set_uniform(HASH("exposure"), exposure);
-                renderer.lit_hdr_texture.bind(0);
+                renderer.full_light_texture.bind(0);
                 glDrawArrays(GL_TRIANGLES, 0, 3);
             }   
 
@@ -500,7 +498,7 @@ int main(int argc, char** argv) {
                 PROFILE_GPU("Blit pass");
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                renderer.main_framebuffer.blit();
+                renderer.tone_map_framebuffer.blit();
             }
 
             glClear(GL_DEPTH_BUFFER_BIT);
