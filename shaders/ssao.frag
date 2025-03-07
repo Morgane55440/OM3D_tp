@@ -64,9 +64,11 @@ float calculateAO(vec3 fragPos, vec3 normal, ivec2 coord, mat4 invProj) {
 
         // Get the depth of the sample pixel
         float sampleDepth = texture(in_depth, coord + sampleUV).x;
+        vec3 scenePos = unproject(sampleUV, sceneDepth, inverse(frame.camera.view_proj));
+
 
         // Check if there is an occlusion
-        if (sampleDepth < projPos.z - 0.01) {
+        if (samplePos.z < projPos.z - 0.01) {
             occlusion += 1.0;
         }
     }

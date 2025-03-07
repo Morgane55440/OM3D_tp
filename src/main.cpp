@@ -473,14 +473,15 @@ int main(int argc, char** argv) {
             {
                 std::cout << "Executing Indirect Lighting Pass" << std::endl;
                 PROFILE_GPU("Indirect Lightning pass");
-                glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "indirect pass");
+                // glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "indirect pass");
                 renderer.indirect_lights_framebuffer.bind(false, true);
                 indirect_lights_program->bind();
                 renderer.lit_hdr_texture.bind(0);
                 renderer.normal_texture.bind(1);
                 renderer.depth_texture.bind(2);
+
                 glDrawArrays(GL_TRIANGLES, 0, 3);
-                glPopDebugGroup();
+                // glPopDebugGroup();
             }
 
             // Apply a tonemap in compute shader

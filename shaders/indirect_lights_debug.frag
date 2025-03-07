@@ -38,7 +38,7 @@
 
     // Monte Carlo AO
     float calculateAO(vec3 fragPos, vec3 normal, ivec2 coord, mat4 invProj, out vec3 bentNormal) {
-        const int numSamples = 16;
+        const int numSamples = 32;
         const float radius = 0.1;
 
         float occlusion = 0.0;
@@ -74,15 +74,16 @@
     }
 
     vec3 rayMarchIndirect(vec3 fragPos, vec3 normal, sampler2D depthTexture, sampler2D hdrTexture) {
-        const int numSamples = 1; 
-        const int maxSteps = 20;
+        const int numSamples = 32; 
+        const int maxSteps = 50;
         const float stepSize = 0.05;
+        const float maxDist = 10;
     
         vec3 indirectLights = vec3(0.0);
         
         for (int i = 0; i < numSamples; ++i) {
-            vec3 rayDir = normalize(normal + vec3(0.5, 0.5, 0.0));
-            rayDir = rayDir * 0.5 + 0.5;
+            vec2 randUV = vec2(float(i) / float(numSamples), rand());
+            vec3 rayDir = randomHemisphereDirection(normal, randUV);
             
             vec3 marchPos = fragPos;
             for (int j = 0; j < maxSteps; ++j) {
@@ -100,9 +101,12 @@
                 // Check if there is an occlusion
                 if (scenePos.z < marchPos.z - 0.01) {
                     // Get the direct lightColor at this pos
-                    vec3 bouncedLight = vec3(1.0, 0.0, 0.0);
-                    float NoL = max(dot(rayDir, normal), 0.0);
-                    indirectLights += bouncedLight * NoL * 0.1;
+                    vec3 bouncedLight = texture(hdrTexture, sampleUV).rgb;
+                    indirectLights += bouncedLight * 0.1;
+                    break;
+                }
+
+                if (length(marchPos - fragPos) > maxDist){     
                     break;
                 }
             }
@@ -122,7 +126,7 @@
         const vec3 direct_light = texelFetch(in_hdr, coord, 0).rgb;
 
         vec3 indirect_lights = rayMarchIndirect(pos, normal, in_depth, in_hdr);
-        vec3 final_color = direct_light + vec3(1.0, 0.0, 0.0); // directlight * ao
+        vec3 final_color = direct_light + indirect_lights * 10.0; // directlight * ao
     
         out_color = vec4(final_color, 1.0);
     }

@@ -84,20 +84,20 @@ bool isOnFrustum(Frustum frustum, SceneObject obj, Camera camera) {
 
 void Scene::render() const {
     // Fill and bind frame data buffer
-    TypedBuffer<shader::FrameData> buffer(nullptr, 1);
+    // _frameDataBuffer = std::make_unique<TypedBuffer<shader::FrameData>>(nullptr, 1);
     {
-        auto mapping = buffer.map(AccessType::WriteOnly);
+        auto mapping = _frameDataBuffer->map(AccessType::WriteOnly);
         mapping[0].camera.view_proj = _camera.view_proj_matrix();
         mapping[0].point_light_count = u32(_point_lights.size());
         mapping[0].sun_color = _sun_color;
         mapping[0].sun_dir = glm::normalize(_sun_direction);
     }
-    buffer.bind(BufferUsage::Uniform, 0);
+    _frameDataBuffer->bind(BufferUsage::Uniform, 0);
 
     // Fill and bind lights buffer
-    TypedBuffer<shader::PointLight> light_buffer(nullptr, std::max(_point_lights.size(), size_t(1)));
+    _lightBuffer = std::make_unique<TypedBuffer<shader::PointLight>>(nullptr, _point_lights.size());
     {
-        auto mapping = light_buffer.map(AccessType::WriteOnly);
+        auto mapping = _lightBuffer->map(AccessType::WriteOnly);
         for(size_t i = 0; i != _point_lights.size(); ++i) {
             const auto& light = _point_lights[i];
             mapping[i] = {
@@ -108,7 +108,7 @@ void Scene::render() const {
             };
         }
     }
-    light_buffer.bind(BufferUsage::Storage, 1);
+    _lightBuffer->bind(BufferUsage::Storage, 1);
 
     const Frustum& frustum = _camera.build_frustum();
     glm::vec3 cameraOrigin = _camera.position();
@@ -122,21 +122,19 @@ void Scene::render() const {
 
 void Scene::render_lights(glm::uvec2 window_size) const
 {
-    TypedBuffer<shader::FrameData> buffer(nullptr, 1);
     {
-        auto mapping = buffer.map(AccessType::WriteOnly);
+        auto mapping = _frameDataBuffer->map(AccessType::WriteOnly);
         mapping[0].camera.view_proj = _camera.view_proj_matrix();
     }
-    buffer.bind(BufferUsage::Uniform, 3);
+    _frameDataBuffer->bind(BufferUsage::Uniform, 3);
 
-    TypedBuffer<shader::WindowSize> size_buffer(nullptr, 1);
+    _windowSizeBuffer = std::make_unique<TypedBuffer<shader::WindowSize>>(nullptr, 1);
     {
-        auto mapping = size_buffer.map(AccessType::WriteOnly);
+        auto mapping = _windowSizeBuffer->map(AccessType::WriteOnly);
         mapping[0].inner = window_size;
     }
-    size_buffer.bind(BufferUsage::Uniform, 5);
+    _windowSizeBuffer->bind(BufferUsage::Uniform, 5);
 
-    TypedBuffer<shader::PointLight> light_buffer(nullptr, 1);
 
     const Frustum& frustum = _camera.build_frustum();
     glm::vec3 cameraOrigin = _camera.position();
@@ -146,7 +144,7 @@ void Scene::render_lights(glm::uvec2 window_size) const
         if (isOnFrustum(frustum, obj, _camera)) {
             const PointLight& l = _point_lights[i];
             {
-                auto mapping = light_buffer.map(AccessType::WriteOnly);
+                auto mapping = _lightBuffer->map(AccessType::WriteOnly);
                 mapping[0] = {
                         l.position(),
                         l.radius(),
@@ -154,7 +152,7 @@ void Scene::render_lights(glm::uvec2 window_size) const
                         0.0f
                  };
             }
-            light_buffer.bind(BufferUsage::Storage, 4);
+            _lightBuffer->bind(BufferUsage::Storage, 4);
             obj.render();
         }
     }
@@ -165,15 +163,15 @@ void Scene::render_lights(glm::uvec2 window_size) const
 
 void Scene::zprepass() const {
     // Fill and bind frame data buffer
-    TypedBuffer<shader::FrameData> buffer(nullptr, 1);
+    _frameDataBuffer = std::make_unique<TypedBuffer<shader::FrameData>>(nullptr, 1);
     {
-        auto mapping = buffer.map(AccessType::WriteOnly);
+        auto mapping = _frameDataBuffer->map(AccessType::WriteOnly);
         mapping[0].camera.view_proj = _camera.view_proj_matrix();
         mapping[0].point_light_count = u32(0);
         mapping[0].sun_color = glm::vec3(0.0,0.0,0.0);
         mapping[0].sun_dir = glm::normalize(_sun_direction);
     }
-    buffer.bind(BufferUsage::Uniform, 0);
+    _frameDataBuffer->bind(BufferUsage::Uniform, 0);
 
     const Frustum& frustum = _camera.build_frustum();
     glm::vec3 cameraOrigin = _camera.position();

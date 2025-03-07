@@ -4,6 +4,7 @@
 #include <SceneObject.h>
 #include <PointLight.h>
 #include <Camera.h>
+#include <shader_structs.h>
 
 #include <vector>
 #include <memory>
@@ -28,6 +29,7 @@ class Scene : NonMovable {
         Span<const SceneObject> objects() const;
         Span<const PointLight> point_lights() const;
 
+
         Camera& camera();
         const Camera& camera() const;
 
@@ -42,6 +44,9 @@ class Scene : NonMovable {
         glm::vec3 _sun_direction = glm::vec3(0.2f, 1.0f, 0.1f);
         glm::vec3 _sun_color = glm::vec3(1.0f);
 
+        mutable std::unique_ptr<TypedBuffer<shader::FrameData>> _frameDataBuffer;
+        mutable std::unique_ptr<TypedBuffer<shader::WindowSize>> _windowSizeBuffer;
+        mutable std::unique_ptr<TypedBuffer<shader::PointLight>> _lightBuffer;
 
         Camera _camera;
 };
