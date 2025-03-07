@@ -4,6 +4,8 @@
 
     layout(location = 0) out vec4 out_color;
     
+    layout(location = 0) in vec2 in_uv;
+
     layout(binding = 0) uniform sampler2D in_hdr;
     layout(binding = 1) uniform sampler2D in_normal;
     layout(binding = 2) uniform sampler2D in_depth;
@@ -34,53 +36,18 @@
         return normalize(tangent * cos(phi) * sinTheta + bitangent * sin(phi) * sinTheta + normal * cosTheta);
     }
 
-    // Monte Carlo AO
-    float calculateAO(vec3 fragPos, vec3 normal, ivec2 coord, mat4 invProj, out vec3 bentNormal) {
-        const int numSamples = 16;
-        const float radius = 0.1;
-
-        float occlusion = 0.0;
-        bentNormal = vec3(0.0);
-        for (int i = 0; i < numSamples; ++i) {
-            // random direction sample around fragment pos
-            vec2 randUV = vec2(rand(), rand());
-            vec3 sampleDir = randomHemisphereDirection(normal, randUV);
-            
-            // pos of the neighbor pixel
-            vec3 samplePos = fragPos + sampleDir * radius;
-
-            // Screen space
-            vec4 projPos = invProj * vec4(samplePos, 1.0);
-            projPos.xyz /= projPos.w;
-            vec2 sampleUV = projPos.xy * 0.5 + 0.5;  //  [-1;1] -> [0;1]
-
-            // Get the depth of the sample pixel
-            float sampleDepth = texture(in_depth, coord + sampleUV).x;
-
-            // Check if there is an occlusion
-            if (sampleDepth < projPos.z - 0.01) {
-                occlusion += 1.0;
-            }
-            else {
-                bentNormal += sampleDir;
-            }
-        }
-
-        bentNormal = normalize(bentNormal / max(1.0, float(numSamples - occlusion)));
-
-        return 1.0 - (occlusion / float(numSamples));
-    }
-
     vec3 rayMarchIndirect(vec3 fragPos, vec3 normal, sampler2D depthTexture, sampler2D hdrTexture) {
-        const int numSamples = 16; 
-        const int maxSteps = 20;
-        const float stepSize = 0.05;
+        const int numSamples = 64; 
+        const int maxSteps = 100;
+        const float stepSize = 0.02;
+        const float maxDist = 20;
     
         vec3 indirectLights = vec3(0.0);
         
         for (int i = 0; i < numSamples; ++i) {
             vec2 randUV = vec2(float(i) / float(numSamples), rand());
             vec3 rayDir = randomHemisphereDirection(normal, randUV);
+            rayDir = dot(rayDir, normal) > 0.0 ? rayDir : -rayDir;
             
             vec3 marchPos = fragPos;
             for (int j = 0; j < maxSteps; ++j) {
@@ -92,15 +59,18 @@
                 vec2 sampleUV = screenPos.xy * 0.5 + 0.5;
     
                 // Get the depth
-                float sceneDepth = texture(depthTexture, sampleUV).r;
+                float sceneDepth = texture(depthTexture, sampleUV).x;
                 vec3 scenePos = unproject(sampleUV, sceneDepth, inverse(frame.camera.view_proj));
                 
                 // Check if there is an occlusion
-                if (scenePos.z < marchPos.z - 0.01) {
+                if (scenePos.z < marchPos.z - 0.01 * stepSize) {
                     // Get the direct lightColor at this pos
                     vec3 bouncedLight = texture(hdrTexture, sampleUV).rgb;
-                    float NoL = max(dot(rayDir, normal), 0.0);
-                    indirectLights += bouncedLight * NoL * 0.1;
+                    indirectLights += bouncedLight;
+                    break;
+                }
+
+                if (length(marchPos - fragPos) > maxDist){     
                     break;
                 }
             }
@@ -119,10 +89,7 @@
 
         const vec3 direct_light = texelFetch(in_hdr, coord, 0).rgb;
 
-        vec3 bentNormal;
-        float ao = calculateAO(pos, normal, coord, invProj, bentNormal);
-
-        vec3 indirect_lights = rayMarchIndirect(pos, bentNormal, in_depth, in_hdr);
+        vec3 indirect_lights = rayMarchIndirect(pos, normal, in_depth, in_hdr);
         vec3 final_color = direct_light + indirect_lights; // directlight * ao
     
         out_color = vec4(final_color, 1.0);

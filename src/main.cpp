@@ -392,7 +392,7 @@ int main(int argc, char** argv) {
     auto tonemap_program = Program::from_files("tonemap.frag", "screen.vert");
     auto gbuffer_program = Program::from_files("gbuffer.frag", "basic.vert");
     auto gbuffer_choice_program = Program::from_files("gbufferchoice.frag", "screen.vert");
-    auto indirect_lights_program = Program::from_files("indirect_lights_debug.frag", "screen.vert");
+    auto indirect_lights_program = Program::from_files("indirect_lights.frag", "screen.vert");
     RendererState renderer;
 
     glEnable(GL_CULL_FACE);
