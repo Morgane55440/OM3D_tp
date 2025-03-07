@@ -332,11 +332,13 @@ struct RendererState {
             state.color_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.sunlight_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.normal_texture = Texture(size, ImageFormat::RGBA8_UNORM);
+            state.indirect_light_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.full_light_texture = Texture(size, ImageFormat::RGBA8_sRGB);
             state.main_framebuffer = Framebuffer(nullptr, std::array{&state.lit_hdr_texture});
             state.g_buffer = Framebuffer(&state.depth_texture, std::array{&state.color_texture, &state.normal_texture});
             state.tone_map_framebuffer = Framebuffer(nullptr, std::array{&state.tone_mapped_texture});
-            state.indirect_lights_framebuffer = Framebuffer(nullptr, std::array{&state.full_light_texture});
+            state.indirect_lights_framebuffer = Framebuffer(nullptr, std::array{&state.indirect_light_texture});
+            state.blur_framebuffer = Framebuffer(nullptr, std::array{&state.full_light_texture});
         }
 
         return state;
@@ -351,6 +353,7 @@ struct RendererState {
     Texture normal_texture;
     Texture sunlight_texture;
     Texture full_light_texture;
+    Texture indirect_light_texture;
 
     Framebuffer prepass_framebuffer;
     Framebuffer sunlight_framebuffer;
@@ -358,6 +361,7 @@ struct RendererState {
     Framebuffer tone_map_framebuffer;
     Framebuffer indirect_lights_framebuffer;
     Framebuffer g_buffer;
+    Framebuffer blur_framebuffer;
 };
 
 
@@ -393,6 +397,7 @@ int main(int argc, char** argv) {
     auto gbuffer_program = Program::from_files("gbuffer.frag", "basic.vert");
     auto gbuffer_choice_program = Program::from_files("gbufferchoice.frag", "screen.vert");
     auto indirect_lights_program = Program::from_files("indirect_lights.frag", "screen.vert");
+    auto blur_program = Program::from_files("blur.frag", "screen.vert");
     RendererState renderer;
 
     glEnable(GL_CULL_FACE);
@@ -479,9 +484,18 @@ int main(int argc, char** argv) {
                 renderer.lit_hdr_texture.bind(0);
                 renderer.normal_texture.bind(1);
                 renderer.depth_texture.bind(2);
-
                 glDrawArrays(GL_TRIANGLES, 0, 3);
                 // glPopDebugGroup();
+            }
+
+            {
+                PROFILE_GPU("Blur pass");
+                renderer.blur_framebuffer.bind(false, true);
+                blur_program->bind();
+                renderer.indirect_light_texture.bind(0);
+                renderer.lit_hdr_texture.bind(1);
+                renderer.depth_texture.bind(2);
+                glDrawArrays(GL_TRIANGLES, 0, 3);
             }
 
             // Apply a tonemap in compute shader

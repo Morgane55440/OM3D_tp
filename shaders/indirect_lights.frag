@@ -37,7 +37,7 @@
     }
 
     vec3 rayMarchIndirect(vec3 fragPos, vec3 normal, sampler2D depthTexture, sampler2D hdrTexture) {
-        const int numSamples = 64; 
+        const int numSamples = 32; 
         const int maxSteps = 100;
         const float stepSize = 0.02;
         const float maxDist = 20;
@@ -90,7 +90,7 @@
         const vec3 direct_light = texelFetch(in_hdr, coord, 0).rgb;
 
         vec3 indirect_lights = rayMarchIndirect(pos, normal, in_depth, in_hdr);
-        vec3 final_color = direct_light + indirect_lights; // directlight * ao
+        vec3 final_color = indirect_lights; // directlight * ao
     
         out_color = vec4(final_color, 1.0);
     }
