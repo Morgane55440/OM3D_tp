@@ -51,7 +51,7 @@ float calculateAO(vec3 fragPos, vec3 normal, ivec2 coord, mat4 invProj) {
     float occlusion = 0.0;
     for (int i = 0; i < numSamples; ++i) {
         // random direction sample around fragment pos
-        vec2 randUV = vec2(rand(), rand());
+        vec2 randUV = vec2(float(i) / float(numSamples), rand());
         vec3 sampleDir = randomHemisphereDirection(normal, randUV);
         
         // pos of the neighbor pixel
@@ -64,11 +64,11 @@ float calculateAO(vec3 fragPos, vec3 normal, ivec2 coord, mat4 invProj) {
 
         // Get the depth of the sample pixel
         float sampleDepth = texture(in_depth, coord + sampleUV).x;
-        vec3 scenePos = unproject(sampleUV, sceneDepth, inverse(frame.camera.view_proj));
+        vec3 samPos = unproject(sampleUV, sampleDepth, inverse(frame.camera.view_proj));
 
 
         // Check if there is an occlusion
-        if (samplePos.z < projPos.z - 0.01) {
+        if (samPos.z < projPos.z - 0.01) {
             occlusion += 1.0;
         }
     }
@@ -87,7 +87,6 @@ void main() {
     vec3 direct_color = texelFetch(in_color, coord, 0).rgb;
 
     float ao = calculateAO(pos, normal, coord, invProj);
-    ao = mix(1.0, ao, 0.6);
 
     out_color = vec4(direct_color * ao, 1.0);
 

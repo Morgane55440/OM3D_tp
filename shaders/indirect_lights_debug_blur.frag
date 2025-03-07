@@ -37,9 +37,9 @@
     }
 
     vec3 rayMarchIndirect(vec3 fragPos, vec3 normal, sampler2D depthTexture, sampler2D hdrTexture) {
-        const int numSamples = 5; 
+        const int numSamples = 32; 
         const int maxSteps = 50;
-        const float stepSize = 0.1;
+        const float stepSize = 0.05;
         const float maxDist = 10;
     
         vec3 indirectLights = vec3(0.0);
